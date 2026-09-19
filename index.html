@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e293b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>এইচটিএমএল অ্যাপ টেস্টার ও রানার</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; height: 100vh; overflow: hidden; }
+
+        .page { display: none; height: 100vh; flex-direction: column; }
+        .page.active { display: flex; }
+
+        header { background: #1e293b; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+        header h1 { font-size: 1.1rem; color: #38bdf8; }
+        .btn-group { display: flex; gap: 8px; align-items: center; }
+
+        .btn { background: #3b82f6; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: background 0.2s; display: inline-flex; align-items: center; gap: 5px; text-decoration: none; }
+        .btn:hover { background: #2563eb; }
+        .btn-success { background: #10b981; }
+        .btn-success:hover { background: #059669; }
+        .btn-danger { background: #ef4444; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-secondary { background: #475569; }
+        .btn-secondary:hover { background: #334155; }
+
+        #fileInput { display: none; }
+
+        .editor-container { flex: 1; display: flex; flex-direction: column; padding: 15px; background: #0f172a; }
+        textarea { flex: 1; background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px; padding: 15px; font-family: 'Courier New', Courier, monospace; font-size: 14px; resize: none; outline: none; line-height: 1.5; }
+        textarea:focus { border-color: #38bdf8; }
+
+        .preview-container { flex: 1; display: flex; flex-direction: column; background: white; position: relative; }
+        iframe { flex: 1; border: none; width: 100%; height: 100%; background: white; }
+        
+        .error-banner { background: #fee2e2; color: #991b1b; padding: 10px 15px; font-family: monospace; font-size: 13px; border-top: 1px solid #f87171; display: none; max-height: 100px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+    <!-- পেইজ ১: কোড এডিটর ও ইমপোর্ট পেইজ -->
+    <div id="editorPage" class="page active">
+        <header>
+            <h1>⚡ HTML অ্যাপ টেস্টার</h1>
+            <div class="btn-group">
+                <label class="btn btn-secondary" for="fileInput">📁 ফাইল দিন</label>
+                <input type="file" id="fileInput" accept=".html,.htm" onchange="loadHtmlFile(event)">
+
+                <button class="btn btn-danger" onclick="clearCode()">🗑️ মুছুন</button>
+
+                <button class="btn btn-success" onclick="runApp()">▶ রান করুন</button>
+            </div>
+        </header>
+        <div class="editor-container">
+            <textarea id="htmlInput" placeholder="আপনার সম্পূর্ণ HTML কোড এখানে পেস্ট করুন অথবা উপরে 'ফাইল দিন' বাটনে ক্লিক করে ফাইল আপলোড করুন..."></textarea>
+        </div>
+    </div>
+
+    <!-- পেইজ ২: প্রিভিউ বা অ্যাপ আউটপুট পেইজ -->
+    <div id="previewPage" class="page">
+        <header>
+            <button class="btn btn-secondary" onclick="goBack()">⬅ ব্যাক (এডিটর)</button>
+            <h1 id="previewTitle">রানিং অ্যাপ প্রিভিউ</h1>
+            <button class="btn btn-success" onclick="runApp()">🔄 রিফ্রেশ</button>
+        </header>
+        <div class="preview-container">
+            <iframe id="appFrame"></iframe>
+            <div id="errorBanner" class="error-banner"></div>
+        </div>
+    </div>
+
+    <script>
+        function loadHtmlFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('htmlInput').value = e.target.result;
+                document.getElementById('fileInput').value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function clearCode() {
+            document.getElementById('htmlInput').value = '';
+        }
+
+        function runApp() {
+            const code = document.getElementById('htmlInput').value.trim();
+            const errorBanner = document.getElementById('errorBanner');
+            errorBanner.style.display = 'none';
+            errorBanner.textContent = '';
+
+            if (!code) {
+                alert('দয়া করে আগে কিছু HTML কোড পেস্ট করুন অথবা ফাইল আপলোড করুন!');
+                return;
+            }
+
+            document.getElementById('editorPage').classList.remove('active');
+            document.getElementById('previewPage').classList.add('active');
+
+            const iframe = document.getElementById('appFrame');
+
+            let finalCode = code;
+            const errorScript = `
+                <script>
+                    window.onerror = function(msg, url, line) {
+                        window.parent.postMessage({type: 'error', message: '⚠️ কোডে সমস্যা পাওয়া গেছে: ' + msg + ' (লাইন নং: ' + line + ')'}, '*');
+                    };
+                <\/script>
+            `;
+
+            if (finalCode.toLowerCase().includes('<body>')) {
+                finalCode = finalCode.replace('<body>', '<body>' + errorScript);
+            } else {
+                finalCode = errorScript + finalCode;
+            }
+
+            const blob = new Blob([finalCode], { type: 'text/html' });
+            iframe.src = URL.createObjectURL(blob);
+        }
+
+        function goBack() {
+            document.getElementById('previewPage').classList.remove('active');
+            document.getElementById('editorPage').classList.add('active');
+        }
+
+        window.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'error') {
+                const errorBanner = document.getElementById('errorBanner');
+                errorBanner.textContent = e.data.message;
+                errorBanner.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
